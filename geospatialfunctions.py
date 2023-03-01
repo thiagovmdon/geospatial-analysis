@@ -173,7 +173,7 @@ def plotboxplots(numr, numc, datatoplot: pd.pandas.core.frame.DataFrame, setylim
     ------------------
     numr = Number of rows of your figure;
     numc = Numer of columns of your figure;
-    datatoplot: dataframe[Index = Datetime; columns = [rain-gauges]]: 
+    datatoplot: dataframe[Index = Codes; columns = [Cluster, Statistical descriptor]]: 
 
     setylim = It is used when one needs to set a common y-lim for the graphs;
     ymin and ymax = only used when "setylim" is "True";
@@ -189,9 +189,9 @@ def plotboxplots(numr, numc, datatoplot: pd.pandas.core.frame.DataFrame, setylim
 
     i = 0
     
-    for col in datatoplot.State.unique():
+    for col in datatoplot.Cluster.unique():
     
-        plot_data = datatoplot[datatoplot["State"] == col].loc[:,"max"]
+        plot_data = datatoplot[datatoplot["Cluster"] == col].loc[:,"max"]
     
         name = col
         
@@ -223,6 +223,51 @@ def plotboxplots(numr, numc, datatoplot: pd.pandas.core.frame.DataFrame, setylim
 
     return plt.show()
 
+#%% 4. Make a df.describe considering a cluster:
 
+# This function is useful for the quick computation of the main statistical descriptors
+# such as: min, max, median and percentils of an initial time-series per cluster. 
+# For example, one may have a initial time-series of several rain-gauge considering 
+# monthly precipitation data and information about potential clusters (or regions). then:
+    # 1. This function compute the maximum, minimum, average or other descriptor for each rain-gauge;
+    # 2. The statistical descriptors of this descriptor are computed per cluster (region). 
 
+def describeclusters(dataset: pd.pandas.core.frame.DataFrame, clusters: pd.pandas.core.frame.DataFrame, 
+                     statisticaldescriptor = "mean", clustercolumnname = "Cluster"): 
+    
+    """
+    Inputs
+    ------------------
 
+    dataset: dataframe[Index = Datetime; columns = [rain-gauges]]
+    clusters: dataframe[Index = Code just as the columns of dataset; columns = clusters: 
+    statisticaldescriptor: {"mean", "count", "std", "min", "25%", "50%", "75%", "max"}                    
+    clustercolumn: Column cluster's name in the cluster dataframe.
+        
+    # It is essential that the columns of the dataframe dataset are the same as the index in the dataframe clusters. 
+    
+    Returns
+    --------------------
+    stationsdescriptor: dataframe[Index = Rain-gauges; columns = [Clusters, statisticaldescriptor]]
+    clustersdescribe: dataframe[Index = Clusters; columns = ["mean", "min", "P25", "950", "25%", "P75",
+                                                             "P90", "P95", "P99", "max", "P25 + 1.5IQR"]] 
+        
+    """   
+    fsummary = dataset.describe()
+    stationsdescriptor = pd.DataFrame(index = clusters.index, columns= ["Cluster"], data = clusters.loc[:, clustercolumnname].values)
+    stationsdescriptor[statisticaldescriptor] = fsummary.T[statisticaldescriptor].values
+    
+    clustersdescribe = stationsdescriptor.groupby(by=["Cluster"]).mean()
+  
+    clustersdescribe.rename(columns = {statisticaldescriptor:'mean'}, inplace = True)
+    clustersdescribe["min"] = stationsdescriptor.groupby(by=["Cluster"]).min()
+    clustersdescribe["P25"] = stationsdescriptor.groupby(by=["Cluster"]).quantile(q = 0.25)
+    clustersdescribe["P50"] = stationsdescriptor.groupby(by=["Cluster"]).quantile(q = 0.5)
+    clustersdescribe["P75"] = stationsdescriptor.groupby(by=["Cluster"]).quantile(q = 0.75)
+    clustersdescribe["P90"] = stationsdescriptor.groupby(by=["Cluster"]).quantile(q = 0.90)
+    clustersdescribe["P95"] = stationsdescriptor.groupby(by=["Cluster"]).quantile(q = 0.95)
+    clustersdescribe["P99"] = stationsdescriptor.groupby(by=["Cluster"]).quantile(q = 0.99)
+    clustersdescribe["max"] = stationsdescriptor.groupby(by=["Cluster"]).max()
+    clustersdescribe["Q1+1.5IQR"] = clustersdescribe["P25"] + (clustersdescribe["P75"] - clustersdescribe["P25"])*1.5
+    
+    return stationsdescriptor, clustersdescribe
