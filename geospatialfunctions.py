@@ -271,3 +271,81 @@ def describeclusters(dataset: pd.pandas.core.frame.DataFrame, clusters: pd.panda
     clustersdescribe["Q1+1.5IQR"] = clustersdescribe["P25"] + (clustersdescribe["P75"] - clustersdescribe["P25"])*1.5
     
     return stationsdescriptor, clustersdescribe
+
+#%% 5. Generate a grid centroids table from initial Lat/Lon and spacing data:
+
+# The main application is for generating centroids of sattelite precipitation grid data (e.g., TRMM).
+# Observations:
+
+# (a) The latitude and longitude are computed as being from left to right and from upper to down;
+# (b) Pay attention on where you have the space positive or negative, for instance, for Paraiba and TRMM, 
+# 0.25 is negative for latitude and positive for longitude. Try to pay attention on where is the (0, 0) of 
+# the equator and Greenwich. 
+# Lat_final and lon_final must be set with one extra, because python does not consider the last.
+
+def generategridcentroids(lat_initial, lat_final, lon_initial, lon_final, lat_spacing, lon_spacing, crsproj = 'epsg:4326'):
+    """
+    Inputs
+    ------------------
+
+    lat_initial: Latitude value in the centroid located at the upper left (origin)
+    lat_final: Latitude value in the centroid located at the lower right + lat_spacing *
+    lon_initial: Longitude value in origin (upper left) 
+    lon_final: Longitude value in the centroid located at the lower right + lon_spacing *
+    lat_spacing: latitude resolution
+    lon_spacing: longitude reolution
+    crsproj: If you are using WGS84, you the code you plot for you a background map, if not, it will just plot the points.
+    
+    * Lat_final and lon_final must be set with one extra, because python does not consider the last.
+    
+    Returns
+    --------------------
+    coord_grids: dataframe[Index = Centroid IDs; columns = [Lat, Lon]]
+    plt.plot: Scatter plot showing the generated grid for conference. 
+        
+    """       
+    
+    
+    
+    lat = np.arange(lat_initial, lat_final, lat_spacing)
+    lon = np.arange(lon_initial, lon_final, lon_spacing)
+    
+    num_rows = len(lat) * len(lon)
+    coord_grids = pd.DataFrame(np.nan, index = range(num_rows), columns = [['Lat', 'Lon']])
+    
+    z = 0
+    for i in lat:
+        j = 0
+        for j in lon:
+            coord_grids.iloc[z, 0]  = i
+            coord_grids.iloc[z, 1] = j
+            z = z + 1
+    coord_grids = pd.DataFrame(coord_grids)
+    
+    if crsproj == 'epsg:4326':
+        coords_df = pd.DataFrame({'GridID': range(len(coord_grids)),
+                         'Lat': coord_grids.Lat.values[:,0],
+                         'Lon': coord_grids.Lon.values[:,0]})
+        
+        crs = {'init': crsproj}
+        
+        geometry=[Point(xy) for xy in zip(coords_df["Lon"], coords_df["Lat"])]
+        geodata=gpd.GeoDataFrame(coords_df,crs=crs, geometry=geometry)
+        geodatacond = geodata
+        # The conversiojn is needed due to the projection of the basemap:
+        geodatacond = geodatacond.to_crs(epsg=3857)
+
+        # Plot the figure and set size:
+        fig, ax = plt.subplots()
+
+        #Organizing the legend:
+        #divider = make_axes_locatable(ax)
+        #cax = divider.append_axes("right", size="5%", pad=0.1)
+
+        #Ploting:
+        geodatacond.plot(ax=ax)
+        cx.add_basemap(ax)
+    else:
+        plt.scatter(coord_grids.Lon, coord_grids.Lat)
+        
+    return coord_grids
